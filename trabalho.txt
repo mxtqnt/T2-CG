@@ -1,0 +1,10 @@
+Desenvolver uma aplicação de Realidade Aumentada (RA) baseada na Web (WebXR) utilizando a biblioteca Three.js. O sistema deve auxiliar operadores de logística a visualizar o preenchimento de espaços (cubagem) e identificar itens em prateleiras através de sobreposição digital de dados.
+
+    • Tecnologia: Uso obrigatório de Three.js e a API WebXR Device API.(NÂO USAR SOLUÇÔES LEGADAS)
+    • Hit Testing: Implementação de detecção de superfícies reais para posicionar objetos virtuais (caixas/paletes) de forma estável no chão ou mesas.
+    • Interatividade Baseada em Dados: A aplicação não deve ter modelos estáticos. Os objetos (dimensões das caixas) devem ser gerados randomicamente, utilizando largura, altura e profundidade. O volume da caixa , definirá sua cor.  Vermelho  V>X  . Verde, Y<V<X.  Azul V<Y . Caixas podem ser empilhadas em caixas da mesma cor. E caixas azuis podem ser inseridas acima de caixas verdes ou vermelhas. E caixas verdes acima de caixas vermelhas.
+
+    A. Módulo de Cubagem Virtual (Simulação de Carga)
+O aluno deve implementar uma funcionalidade onde o usuário aponta a câmera para um palete vazio e, ao clicar, "empilha" virtualmente as caixas
+B. Módulo de Picking Guiado
+A aplicação deve simular uma caçamba de um caminhão. Ao detectar um marcador ou uma posição específica, o sistema deve destacar quando não for possível empilhar a caixa.

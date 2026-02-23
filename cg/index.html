@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RA Cubagem &mdash; WebXR</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #1a1a2e;
+            touch-action: none;
+        }
+
+        #overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        #overlay > * { pointer-events: auto; }
+
+        #status {
+            position: absolute; bottom: 80px; width: 100%;
+            text-align: center; color: #fff; font-size: 15px;
+            text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        #boxInfo {
+            position: absolute; top: 16px; left: 16px;
+            color: #fff; background: rgba(0,0,0,0.6);
+            padding: 10px 14px; border-radius: 8px;
+            font-size: 13px; line-height: 1.6;
+            display: none; pointer-events: none;
+        }
+
+        #stats {
+            position: absolute; top: 16px; right: 16px;
+            color: #fff; background: rgba(0,0,0,0.6);
+            padding: 10px 14px; border-radius: 8px;
+            font-size: 12px; line-height: 1.6;
+            pointer-events: none;
+        }
+
+        #warning {
+            position: absolute; top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(200, 20, 20, 0.9); color: #fff;
+            padding: 16px 36px; border-radius: 10px;
+            font-size: 20px; font-weight: bold;
+            display: none; pointer-events: none;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 28px; height: 28px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute;
+            background: rgba(255,255,255,0.45);
+        }
+        #crosshair::before {
+            top: 50%; left: 0; width: 100%; height: 2px;
+            transform: translateY(-50%);
+        }
+        #crosshair::after {
+            left: 50%; top: 0; height: 100%; width: 2px;
+            transform: translateX(-50%);
+        }
+
+        .action-btn {
+            position: absolute; bottom: 28px;
+            background: rgba(180, 40, 40, 0.85); color: #fff;
+            border: 2px solid rgba(255,255,255,0.5);
+            padding: 12px 24px; border-radius: 8px;
+            font-size: 15px; cursor: pointer;
+            display: none; pointer-events: auto;
+        }
+        #cancelBtn  { left: calc(50% - 140px); }
+        #newBoxBtn  { left: calc(50% + 20px); background: rgba(40, 120, 180, 0.85); }
+
+        .color-btn {
+            position: absolute; bottom: 28px;
+            width: 42px; height: 42px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.7);
+            cursor: pointer; display: none;
+            pointer-events: auto;
+            font-size: 18px; line-height: 42px;
+            text-align: center; padding: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        #pickRed   { right: 16px;  background: rgba(220, 50, 50, 0.9);  color: #fff; }
+        #pickGreen { right: 66px;  background: rgba(50, 180, 50, 0.9);  color: #fff; }
+        #pickBlue  { right: 116px; background: rgba(50, 110, 220, 0.9); color: #fff; }
+
+        #legend {
+            position: absolute; bottom: 80px; left: 16px;
+            color: #fff; background: rgba(0,0,0,0.55);
+            padding: 8px 12px; border-radius: 8px;
+            font-size: 11px; line-height: 1.5;
+            pointer-events: none;
+        }
+
+        #modeLabel {
+            position: absolute; top: 4px; left: 50%;
+            transform: translateX(-50%);
+            color: #ffe066; font-size: 11px;
+            text-shadow: 0 1px 3px #000;
+            pointer-events: none;
+        }
+
+        /* ── AR Virtual Joystick ── */
+        #joystickContainer {
+            position: absolute;
+            bottom: 110px;
+            left: 24px;
+            width: 130px;
+            height: 130px;
+            display: none;
+            pointer-events: auto;
+            touch-action: none;
+            z-index: 20;
+        }
+        #joystickBase {
+            position: absolute;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+            border: 2px solid rgba(255,255,255,0.35);
+        }
+        #joystickThumb {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.45);
+            border: 2px solid rgba(255,255,255,0.75);
+            top: 38px;
+            left: 38px;
+        }
+        #dropBtn {
+            position: absolute;
+            bottom: 130px;
+            right: 24px;
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            background: rgba(40, 200, 80, 0.88);
+            color: #fff;
+            border: 3px solid rgba(255,255,255,0.7);
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            display: none;
+            pointer-events: auto;
+            touch-action: none;
+            z-index: 20;
+            text-align: center;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.3;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <div id="modeLabel"></div>
+    <div id="warning"></div>
+    <div id="status">Toque na tela para posicionar o palete</div>
+    <div id="boxInfo"></div>
+    <div id="stats">
+        <b>Estatísticas</b><br>
+        Palete: <span id="palletCount">0</span> cxs &mdash; <span id="palletVol">0</span> cm³
+    </div>
+    <div id="crosshair"></div>
+    <button class="action-btn" id="cancelBtn">✕ Cancelar</button>
+    <button class="action-btn" id="newBoxBtn">↻ Nova Caixa</button>
+    <button class="color-btn" id="pickRed" title="Caixa Vermelha">🟥</button>
+    <button class="color-btn" id="pickGreen" title="Caixa Verde">🟩</button>
+    <button class="color-btn" id="pickBlue" title="Caixa Azul">🟦</button>
+    <div id="joystickContainer">
+        <div id="joystickBase"></div>
+        <div id="joystickThumb"></div>
+    </div>
+    <button id="dropBtn">⬇<br>SOLTAR</button>
+    <div id="legend">
+        <b>Regras de Empilhamento</b><br>
+        🔴 Vermelha (V &gt; 12 000 cm³)<br>
+        🟢 Verde (5 000 &lt; V &lt; 12 000)<br>
+        🔵 Azul (V &lt; 5 000 cm³)<br>
+        Mesma cor ✓ &nbsp; 🔵→🟢 ✓ &nbsp; 🔵→🔴 ✓ &nbsp; 🟢→🔴 ✓
+    </div>
+</div>
+
+<script type="module">
+// ================================================================
+//  Imports
+// ================================================================
+import * as THREE from '../build/three.module.js';
+import { ARButton }      from '../examples/jsm/webxr/ARButton.js';
+import { OrbitControls }  from '../examples/jsm/controls/OrbitControls.js';
+
+// ================================================================
+//  Constants
+// ================================================================
+const VOLUME_HIGH = 0.012;
+const VOLUME_LOW  = 0.005;
+const BOX_COLORS  = { red: 0xdd3333, green: 0x33bb33, blue: 0x3377dd };
+
+const PALLET_W = 0.6, PALLET_D = 0.6;
+const PALLET_LEG_H = 0.08, PALLET_THICK = 0.04;
+const PALLET_TOP = PALLET_LEG_H + PALLET_THICK;
+
+const HELD_OFFSET = new THREE.Vector3( 0, -0.10, -0.42 );
+
+// ================================================================
+//  State
+// ================================================================
+let renderer, scene, camera, controls;
+let isARMode       = false;
+let controller;
+let reticle;
+let hitTestSource  = null;
+let hitTestSourceRequested = false;
+
+let boxGroup       = null;
+let palletGroup    = null;
+let nextBox        = null;
+let heldBox        = null;           // box held in hand (attached to camera)
+let heldBoxData    = null;
+let warningTimeout = null;
+let mode           = 'place-pallet'; // 'place-pallet' | 'interact'
+let floatingBoxes  = [];
+let placedFloorY   = 0;
+
+// AR virtual joystick controls
+let arJoystickMode = false;
+let joystickTouchId = null;
+let joystickDX = 0, joystickDZ = 0;
+let dropShadowMesh = null;
+let prevTimestamp  = 0;
+const JOYSTICK_MOVE_SPEED = 0.35;
+const _camFwd   = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _upVec    = new THREE.Vector3( 0, 1, 0 );
+
+// Drag (mouse + touch)
+let isDragging     = false;
+let dragPlaneY     = 0;
+let dragPointerId  = null;
+const dragHPlane   = new THREE.Plane();
+const dragPt       = new THREE.Vector3();
+const dragOffset   = new THREE.Vector3();   // offset between box center and initial hit point
+
+const tempMatrix   = new THREE.Matrix4();
+const highlightedObjs = [];
+
+let raycaster  = new THREE.Raycaster();
+let pointer    = new THREE.Vector2();
+let floorPlane = new THREE.Plane( new THREE.Vector3( 0, 1, 0 ), 0 );
+
+// DOM
+let warningDiv, statusDiv, boxInfoDiv, cancelBtn, newBoxBtn, modeLabel;
+let palletCountEl, palletVolEl;
+let pickRedBtn, pickGreenBtn, pickBlueBtn;
+let joystickContainer, joystickThumb, joystickBase, dropBtn;
+
+// ================================================================
+//  Bootstrap
+// ================================================================
+init();
+
+async function init() {
+    warningDiv     = document.getElementById( 'warning' );
+    statusDiv      = document.getElementById( 'status' );
+    boxInfoDiv     = document.getElementById( 'boxInfo' );
+    cancelBtn      = document.getElementById( 'cancelBtn' );
+    newBoxBtn      = document.getElementById( 'newBoxBtn' );
+    modeLabel      = document.getElementById( 'modeLabel' );
+    palletCountEl  = document.getElementById( 'palletCount' );
+    palletVolEl    = document.getElementById( 'palletVol' );
+
+    cancelBtn.addEventListener( 'click', e => { e.stopPropagation(); cancelHold(); } );
+    newBoxBtn.addEventListener( 'click', e => { e.stopPropagation(); if ( !heldBox && !isDragging ) spawnNextBox(); } );
+
+    pickRedBtn   = document.getElementById( 'pickRed' );
+    pickGreenBtn = document.getElementById( 'pickGreen' );
+    pickBlueBtn  = document.getElementById( 'pickBlue' );
+    pickRedBtn.addEventListener(   'click', e => { e.stopPropagation(); if ( !heldBox && !isDragging ) spawnNextBoxColor( 'red' );   } );
+    pickGreenBtn.addEventListener( 'click', e => { e.stopPropagation(); if ( !heldBox && !isDragging ) spawnNextBoxColor( 'green' ); } );
+    pickBlueBtn.addEventListener(  'click', e => { e.stopPropagation(); if ( !heldBox && !isDragging ) spawnNextBoxColor( 'blue' );  } );
+
+    // ── AR Virtual Joystick + Drop Button ──
+    joystickContainer = document.getElementById( 'joystickContainer' );
+    joystickBase      = document.getElementById( 'joystickBase' );
+    joystickThumb     = document.getElementById( 'joystickThumb' );
+    dropBtn           = document.getElementById( 'dropBtn' );
+    dropBtn.addEventListener( 'touchstart', e => { e.preventDefault(); e.stopPropagation(); onDropButton(); }, { passive: false } );
+    dropBtn.addEventListener( 'click', e => { e.stopPropagation(); onDropButton(); } );
+    joystickContainer.addEventListener( 'touchstart', onJoystickTouchStart, { passive: false } );
+    joystickContainer.addEventListener( 'touchmove',  onJoystickTouchMove,  { passive: false } );
+    joystickContainer.addEventListener( 'touchend',   onJoystickTouchEnd,   { passive: false } );
+    joystickContainer.addEventListener( 'touchcancel', onJoystickTouchEnd,   { passive: false } );
+
+    // ── Scene ──
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera( 70, innerWidth / innerHeight, 0.01, 50 );
+    scene.add( camera );
+
+    // ── Lights ──
+    scene.add( new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1.0 ) );
+    const dir = new THREE.DirectionalLight( 0xffffff, 0.8 );
+    dir.position.set( 1, 3, 2 );
+    dir.castShadow = true;
+    dir.shadow.camera.top = 2; dir.shadow.camera.bottom = -2;
+    dir.shadow.camera.right = 2; dir.shadow.camera.left = -2;
+    dir.shadow.mapSize.set( 1024, 1024 );
+    scene.add( dir );
+
+    // ── Renderer ──
+    renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+    renderer.setPixelRatio( devicePixelRatio );
+    renderer.setSize( innerWidth, innerHeight );
+    renderer.setClearColor( 0x000000, 0 );
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.xr.enabled = true;
+    renderer.domElement.style.touchAction = 'none';
+    document.body.insertBefore( renderer.domElement, document.getElementById( 'overlay' ) );
+
+    // ── Box group ──
+    boxGroup = new THREE.Group();
+    scene.add( boxGroup );
+
+    // ── Drop Shadow Indicator ──
+    {
+        const shadowGeo = new THREE.PlaneGeometry( 1, 1 );
+        shadowGeo.rotateX( -Math.PI / 2 );
+        const shadowMat = new THREE.MeshBasicMaterial( {
+            color: 0x00ff00, transparent: true, opacity: 0.35,
+            side: THREE.DoubleSide, depthWrite: false
+        } );
+        dropShadowMesh = new THREE.Mesh( shadowGeo, shadowMat );
+        dropShadowMesh.visible = false;
+        dropShadowMesh.renderOrder = 999;
+        scene.add( dropShadowMesh );
+    }
+
+    // ── Floor + Grid (always, for raycasting) ──
+    scene.background = new THREE.Color( 0x1a1a2e );
+    camera.position.set( 0, 1.6, 2.0 );
+
+    const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry( 6, 6 ),
+        new THREE.MeshStandardMaterial( { color: 0x334455, roughness: 1.0, metalness: 0 } )
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    floor.name = 'floor';
+    scene.add( floor );
+
+    const grid = new THREE.GridHelper( 6, 12, 0x556677, 0x556677 );
+    grid.position.y = 0.001;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.3;
+    scene.add( grid );
+
+    // ── OrbitControls (always — right-click/two-finger to orbit) ──
+    controls = new OrbitControls( camera, renderer.domElement );
+    controls.target.set( 0, 0.3, 0 );
+    controls.mouseButtons = {
+        LEFT:   null,                      // left click free for interaction
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT:  THREE.MOUSE.ROTATE
+    };
+    controls.touches = {
+        ONE: null,                         // single touch → interaction
+        TWO: THREE.TOUCH.DOLLY_ROTATE     // two fingers → orbit/zoom
+    };
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.update();
+
+    // ── Reticle (for AR hit-test surface indicator) ──
+    reticle = new THREE.Mesh(
+        new THREE.RingGeometry( 0.10, 0.14, 32 ).rotateX( -Math.PI / 2 ),
+        new THREE.MeshBasicMaterial( { color: 0xffdd00 } )
+    );
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add( reticle );
+
+    // ── Pointer events (capture phase + passive:false — mandatory on Android Chrome
+    //    to prevent the browser from starting a scroll/pan gesture and firing
+    //    pointercancel before our drag can start) ──
+    renderer.domElement.addEventListener( 'pointerdown',   onPointerDown,   { capture: true, passive: false } );
+    renderer.domElement.addEventListener( 'pointermove',   onPointerMove,   { capture: true, passive: false } );
+    renderer.domElement.addEventListener( 'pointerup',     onPointerUp,     { capture: true, passive: false } );
+    renderer.domElement.addEventListener( 'pointercancel', onPointerCancel, { capture: true, passive: false } );
+
+    // ── Safety-net: prevent native touch gestures from cancelling our pointer
+    //    sequence on mobile browsers (Samsung Internet, Chrome for Android) ──
+    renderer.domElement.addEventListener( 'touchstart', e => {
+        if ( mode === 'interact' ) e.preventDefault();
+    }, { passive: false } );
+
+    // ── Detect WebXR AR support ──
+    let arSupported = false;
+    if ( 'xr' in navigator ) {
+        try { arSupported = await navigator.xr.isSessionSupported( 'immersive-ar' ); }
+        catch ( e ) { arSupported = false; }
+    }
+    if ( arSupported ) setupAR();
+    else modeLabel.textContent = 'Modo Desktop — toque na caixa, depois toque no palete';
+
+    // ── Resize ──
+    addEventListener( 'resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( innerWidth, innerHeight );
+    } );
+
+    renderer.setAnimationLoop( render );
+}
+
+// ================================================================
+//  WebXR AR Setup (additive — pointer events already registered)
+// ================================================================
+function setupAR() {
+    isARMode = true;
+    modeLabel.textContent = 'Modo: Realidade Aumentada (WebXR)';
+
+    const overlay = document.getElementById( 'overlay' );
+    const arBtn = ARButton.createButton( renderer, {
+        requiredFeatures: [ 'hit-test' ],
+        optionalFeatures: [ 'dom-overlay' ],
+        domOverlay: { root: overlay }
+    } );
+    document.body.appendChild( arBtn );
+
+    // XR Controller
+    controller = renderer.xr.getController( 0 );
+    controller.addEventListener( 'selectstart', onXRSelectStart );
+    controller.addEventListener( 'selectend',   onXRSelectEnd );
+    scene.add( controller );
+
+    // Visible ray line on controller
+    const lineGeo = new THREE.BufferGeometry().setFromPoints( [
+        new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, -1 )
+    ] );
+    const line = new THREE.Line( lineGeo, new THREE.LineBasicMaterial( { color: 0xffffff } ) );
+    line.name = 'line';
+    line.scale.z = 3;
+    controller.add( line );
+
+    // During XR session, hide floor/grid and use passthrough camera
+    renderer.xr.addEventListener( 'sessionstart', () => {
+        scene.background = null;
+        scene.getObjectByName( 'floor' ).visible = false;
+    } );
+    renderer.xr.addEventListener( 'sessionend', () => {
+        scene.background = new THREE.Color( 0x1a1a2e );
+        scene.getObjectByName( 'floor' ).visible = true;
+        // Clean up AR joystick mode
+        if ( arJoystickMode ) {
+            arJoystickMode = false;
+            joystickDX = 0;
+            joystickDZ = 0;
+            showARControls( false );
+            if ( heldBox ) cancelHold();
+        }
+    } );
+}
+
+// ================================================================
+//  XR Controller: selectstart / selectend (AR session only)
+// ================================================================
+function onXRSelectStart() {
+    if ( mode === 'place-pallet' ) {
+        if ( reticle.visible ) placePalletAt( reticle.matrix );
+        return;
+    }
+
+    if ( mode !== 'interact' ) return;
+
+    // If already in joystick mode, ignore screen taps (use buttons instead)
+    if ( arJoystickMode ) return;
+
+    // If holding a box via camera-attach (legacy pickUpBox), place it
+    if ( heldBox && !arJoystickMode ) {
+        // Raycast from controller to find placement point
+        tempMatrix.identity().extractRotation( controller.matrixWorld );
+        raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+        raycaster.ray.direction.set( 0, 0, -1 ).applyMatrix4( tempMatrix );
+        attemptPlaceHeld();
+        return;
+    }
+
+    // Raycast from controller to pick up a box
+    tempMatrix.identity().extractRotation( controller.matrixWorld );
+    raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+    raycaster.ray.direction.set( 0, 0, -1 ).applyMatrix4( tempMatrix );
+
+    const allBoxes = boxGroup.children.filter( c => c.userData && c.userData.isBox );
+    const hits = raycaster.intersectObjects( allBoxes, true );
+    if ( hits.length === 0 ) return;
+
+    // Prioritize the unplaced nextBox
+    let target = null;
+    if ( nextBox && !nextBox.userData.placed ) {
+        for ( const h of hits ) {
+            let obj = h.object;
+            while ( obj && !( obj.userData && obj.userData.isBox ) ) obj = obj.parent;
+            if ( obj === nextBox ) { target = nextBox; break; }
+        }
+    }
+    if ( !target ) {
+        target = hits[ 0 ].object;
+        while ( target && !( target.userData && target.userData.isBox ) ) target = target.parent;
+    }
+    if ( !target ) return;
+
+    pickUpForARJoystick( target );
+}
+
+function onXRSelectEnd() {
+    // Handled by joystick + drop button in AR
+}
+
+// ================================================================
+//  Pointer Handlers (mouse + touch — works outside XR session)
+// ================================================================
+function ndcFromEvent( event ) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x =  ( ( event.clientX - rect.left ) / rect.width  ) * 2 - 1;
+    pointer.y = -( ( event.clientY - rect.top  ) / rect.height ) * 2 + 1;
+}
+
+function onPointerDown( event ) {
+    // Ignore right-click (orbit)
+    if ( event.button === 2 ) return;
+
+    ndcFromEvent( event );
+    raycaster.setFromCamera( pointer, camera );
+
+    // ── Phase: place pallet ──
+    if ( mode === 'place-pallet' ) {
+        // In AR, pallet is placed via hit-test (XR controller), not pointer
+        if ( renderer.xr.isPresenting ) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const hitPt = new THREE.Vector3();
+        if ( raycaster.ray.intersectPlane( floorPlane, hitPt ) ) {
+            const m = new THREE.Matrix4();
+            m.setPosition( hitPt );
+            placePalletAt( m );
+        }
+        return;
+    }
+
+    if ( mode !== 'interact' ) return;
+
+    // In XR AR session, box picking is handled by onXRSelectStart — skip pointer events on canvas
+    if ( renderer.xr.isPresenting ) return;
+
+    // On touch devices, ALWAYS prevent the browser's native gesture recogniser
+    // (scroll / pan / zoom) from cancelling our pointer sequence. Without this,
+    // Android Chrome fires 'pointercancel' before the drag can begin.
+    if ( event.pointerType === 'touch' ) {
+        event.preventDefault();
+    }
+
+    // ── If holding a box → attempt to place it where we tapped ──
+    if ( heldBox ) {
+        if ( arJoystickMode ) return;   // joystick mode uses buttons, not taps
+        event.stopImmediatePropagation();
+        attemptPlaceHeld();
+        return;
+    }
+
+    // Temporarily disable OrbitControls so it doesn't steal the pointer
+    // capture while we're raycasting.
+    const controlsWasEnabled = controls ? controls.enabled : false;
+    if ( controls ) controls.enabled = false;
+
+    // ── Not holding → try to pick up a box ──
+    const allBoxes = boxGroup.children.filter( c => c.userData && c.userData.isBox );
+    const hits = raycaster.intersectObjects( allBoxes, true );
+    if ( hits.length === 0 ) {
+        // No box hit — re-enable OrbitControls so two-finger orbit still works
+        if ( controls ) controls.enabled = controlsWasEnabled;
+        return;
+    }
+
+    // Prioritize the unplaced nextBox so placed boxes don't intercept the tap
+    let target = null;
+    if ( nextBox && !nextBox.userData.placed ) {
+        for ( const h of hits ) {
+            let obj = h.object;
+            while ( obj && !( obj.userData && obj.userData.isBox ) ) obj = obj.parent;
+            if ( obj === nextBox ) { target = nextBox; break; }
+        }
+    }
+    if ( !target ) {
+        target = hits[ 0 ].object;
+        while ( target && !( target.userData && target.userData.isBox ) ) target = target.parent;
+    }
+    if ( !target ) {
+        if ( controls ) controls.enabled = controlsWasEnabled;
+        return;
+    }
+
+    // Both mouse and touch: drag the box — capture the pointer
+    event.stopImmediatePropagation();
+    dragPointerId = event.pointerId;
+    try { renderer.domElement.setPointerCapture( event.pointerId ); } catch ( e ) {}
+    pickUpForDrag( target, raycaster );
+}
+
+function onPointerMove( event ) {
+    ndcFromEvent( event );
+
+    // Drag (mouse + touch)
+    if ( isDragging && heldBox ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        raycaster.setFromCamera( pointer, camera );
+        if ( raycaster.ray.intersectPlane( dragHPlane, dragPt ) ) {
+            // Apply offset so the box follows the finger/cursor accurately
+            const targetX = dragPt.x + dragOffset.x;
+            const targetZ = dragPt.z + dragOffset.z;
+
+            // Find the landing surface and resolve lateral collisions
+            const ud = heldBox.userData;
+            const surfaceY = findSurfaceY( targetX, targetZ, heldBox );
+            let candidateY = surfaceY + ud.height / 2;
+
+            // Push up while there is a lateral 3D collision
+            for ( let tries = 0; tries < 12; tries++ ) {
+                const col = findCollision(
+                    targetX, candidateY, targetZ,
+                    ud.width / 2, ud.height / 2, ud.depth / 2, heldBox
+                );
+                if ( !col ) break;
+                // Sit on top of the collider
+                candidateY = col.position.y + col.userData.height / 2 + ud.height / 2;
+            }
+
+            heldBox.position.set( targetX, candidateY, targetZ );
+        }
+    }
+}
+
+function onPointerUp( event ) {
+    if ( event.button === 2 ) return;
+
+    // Drag release (mouse + touch)
+    if ( isDragging && heldBox ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        releasePointerLock();
+        endDrag();
+    }
+}
+
+function onPointerCancel( event ) {
+    // Mobile browsers fire pointercancel instead of pointerup in some cases
+    if ( isDragging && heldBox ) {
+        releasePointerLock();
+        snapBackDrag();
+    }
+}
+
+function releasePointerLock() {
+    if ( dragPointerId !== null ) {
+        try { renderer.domElement.releasePointerCapture( dragPointerId ); } catch ( e ) {}
+        dragPointerId = null;
+    }
+}
+
+// ================================================================
+//  Pick Up Box (touch / XR — attaches to camera)
+// ================================================================
+function pickUpBox( box ) {
+    heldBox = box;
+    heldBoxData = {
+        wasPlaced: box.userData.placed,
+        wasNext: ( box === nextBox ),
+        originalWorldPos: new THREE.Vector3(),
+        originalWorldQuat: new THREE.Quaternion()
+    };
+    box.getWorldPosition( heldBoxData.originalWorldPos );
+    box.getWorldQuaternion( heldBoxData.originalWorldQuat );
+
+    if ( box.userData.placed ) markFloatingBoxes( box );
+
+    // Remove from boxGroup and attach to camera
+    boxGroup.remove( box );
+    box.rotation.set( 0, 0, 0 );
+    box.quaternion.set( 0, 0, 0, 1 );
+    camera.add( box );
+    box.position.copy( HELD_OFFSET );
+
+    box.material.transparent = true;
+    box.material.opacity = 0.7;
+    box.material.emissiveIntensity = 0.35;
+
+    showButtons( true );
+    statusDiv.textContent = 'Agora toque no palete para colocar';
+}
+
+// ================================================================
+//  Pick Up Box for Mouse Drag (stays in scene, dragged on plane)
+// ================================================================
+function pickUpForDrag( box, raycasterRef ) {
+    // In AR session, use virtual joystick controls instead of drag
+    if ( isARMode && renderer.xr.isPresenting ) {
+        pickUpForARJoystick( box );
+        return;
+    }
+
+    heldBox = box;
+    heldBoxData = {
+        wasPlaced: box.userData.placed,
+        wasNext: ( box === nextBox ),
+        originalWorldPos: new THREE.Vector3(),
+        originalWorldQuat: new THREE.Quaternion()
+    };
+    box.getWorldPosition( heldBoxData.originalWorldPos );
+    box.getWorldQuaternion( heldBoxData.originalWorldQuat );
+
+    if ( box.userData.placed ) markFloatingBoxes( box );
+
+    // Keep box in boxGroup but drag on horizontal plane
+    isDragging = true;
+
+    // Use the box's current Y as the drag reference plane so the ray-plane
+    // intersection stays close to where the finger/cursor is on screen.
+    dragPlaneY = box.position.y;
+    dragHPlane.set( new THREE.Vector3( 0, 1, 0 ), -dragPlaneY );
+
+    // Calculate offset between the box center and the initial hit point
+    // so the box doesn't jump when the user starts dragging.
+    dragOffset.set( 0, 0, 0 );
+    if ( raycasterRef ) {
+        const initPt = new THREE.Vector3();
+        if ( raycasterRef.ray.intersectPlane( dragHPlane, initPt ) ) {
+            dragOffset.set(
+                box.position.x - initPt.x,
+                0,
+                box.position.z - initPt.z
+            );
+        }
+    }
+
+    box.material.transparent = true;
+    box.material.opacity = 0.7;
+    box.material.emissiveIntensity = 0.35;
+
+    if ( controls ) controls.enabled = false;
+    renderer.domElement.style.cursor = 'grabbing';
+
+    showButtons( true );
+    statusDiv.textContent = 'Arraste e solte sobre o palete';
+}
+
+// ================================================================
+//  AR Virtual Joystick: Pick Up Box
+// ================================================================
+function pickUpForARJoystick( box ) {
+    heldBox = box;
+    heldBoxData = {
+        wasPlaced: box.userData.placed,
+        wasNext: ( box === nextBox ),
+        originalWorldPos: new THREE.Vector3(),
+        originalWorldQuat: new THREE.Quaternion()
+    };
+    box.getWorldPosition( heldBoxData.originalWorldPos );
+    box.getWorldQuaternion( heldBoxData.originalWorldQuat );
+
+    if ( box.userData.placed ) markFloatingBoxes( box );
+
+    arJoystickMode = true;
+
+    // Position box floating above pallet center
+    if ( palletGroup ) {
+        const pp = palletGroup.position;
+        box.position.set(
+            pp.x,
+            pp.y + PALLET_TOP + box.userData.height / 2 + 0.10,
+            pp.z
+        );
+    }
+    box.rotation.set( 0, 0, 0 );
+    box.quaternion.set( 0, 0, 0, 1 );
+    if ( box.parent !== boxGroup ) boxGroup.add( box );
+
+    box.material.transparent = true;
+    box.material.opacity = 0.7;
+    box.material.emissiveIntensity = 0.35;
+
+    showARControls( true );
+    showButtons( true );
+    statusDiv.textContent = 'Analógico = mover  •  Botão = soltar';
+}
+
+// ================================================================
+//  Cancel Hold / Snap Back
+// ================================================================
+function cancelHold() {
+    if ( arJoystickMode && heldBox ) {
+        const box  = heldBox;
+        const data = heldBoxData;
+
+        box.material.transparent = false;
+        box.material.opacity = 1.0;
+        box.material.emissiveIntensity = 0.15;
+        hideWarnEdges( box );
+
+        if ( data.wasPlaced ) {
+            box.position.copy( data.originalWorldPos );
+            box.quaternion.copy( data.originalWorldQuat );
+            if ( box.parent !== boxGroup ) boxGroup.add( box );
+        } else {
+            returnToSpawn( box );
+        }
+
+        arJoystickMode = false;
+        heldBox = null;
+        heldBoxData = null;
+        joystickDX = 0;
+        joystickDZ = 0;
+        showARControls( false );
+        applyGravity();
+        updateStats();
+        showButtons( false );
+        statusDiv.textContent = 'Toque numa caixa para pegá-la';
+        return;
+    }
+    if ( isDragging && heldBox ) {
+        snapBackDrag();
+        return;
+    }
+    if ( !heldBox ) return;
+    const box  = heldBox;
+    const data = heldBoxData;
+
+    camera.remove( box );
+    box.material.transparent = false;
+    box.material.opacity = 1.0;
+    box.material.emissiveIntensity = 0.15;
+    hideWarnEdges( box );
+
+    if ( data.wasPlaced ) {
+        box.position.copy( data.originalWorldPos );
+        box.quaternion.copy( data.originalWorldQuat );
+        boxGroup.add( box );
+    } else {
+        returnToSpawn( box );
+    }
+
+    heldBox = null;
+    heldBoxData = null;
+    applyGravity();
+    updateStats();
+    showButtons( false );
+    statusDiv.textContent = 'Toque numa caixa para pegá-la';
+}
+
+function snapBackDrag() {
+    if ( !isDragging || !heldBox ) return;
+    const box  = heldBox;
+    const data = heldBoxData;
+
+    box.material.transparent = false;
+    box.material.opacity = 1.0;
+    box.material.emissiveIntensity = 0.15;
+    hideWarnEdges( box );
+
+    if ( data.wasPlaced ) {
+        box.position.copy( data.originalWorldPos );
+    } else {
+        returnToSpawn( box );
+    }
+
+    releasePointerLock();
+    isDragging = false;
+    heldBox = null;
+    heldBoxData = null;
+    if ( controls ) controls.enabled = true;
+    renderer.domElement.style.cursor = 'default';
+    applyGravity();
+    updateStats();
+    showButtons( false );
+    statusDiv.textContent = 'Toque numa caixa para pegá-la';
+}
+
+function returnToSpawn( box ) {
+    if ( palletGroup ) {
+        const pp = palletGroup.position;
+        box.position.set(
+            pp.x + PALLET_W / 2 + box.userData.width / 2 + 0.12,
+            pp.y + PALLET_TOP + box.userData.height / 2,
+            pp.z
+        );
+    }
+    box.rotation.set( 0, 0, 0 );
+    box.userData.placed = false;
+    if ( box.parent !== boxGroup ) boxGroup.add( box );
+    nextBox = box;
+}
+
+// ================================================================
+//  Attempt Place — held box (touch / XR tap-to-place)
+// ================================================================
+function attemptPlaceHeld() {
+    if ( !heldBox ) return;
+
+    // Use the tap raycaster to find WHERE on the pallet to place
+    const targets = [];
+    if ( palletGroup )  targets.push( palletGroup );
+    const placed = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed
+    );
+    targets.push( ...placed );
+
+    const hits = raycaster.intersectObjects( targets, true );
+    if ( hits.length === 0 ) {
+        showWarning( '⚠ Toque no palete' );
+        return;
+    }
+
+    // Find the hit point
+    const hitPoint = hits[ 0 ].point;
+    const boxH = heldBox.userData.height;
+
+    const inPallet  = palletGroup  && boxFitsInPallet( hitPoint, heldBox.userData.width, heldBox.userData.depth );
+
+    if ( !inPallet ) {
+        showWarning( '⚠ Toque no palete' );
+        return;
+    }
+
+    // Analytical landing + collision check
+    const landing = findLandingInfo( hitPoint.x, hitPoint.z, heldBox );
+    let landingY = landing.y;
+
+    if ( landingY <= -Infinity ) {
+        showWarning( '⚠ Sem superfície de apoio' );
+        return;
+    }
+
+    // Resolve lateral collisions by pushing up
+    let candidateY = landingY + boxH / 2;
+    for ( let tries = 0; tries < 12; tries++ ) {
+        const col = findCollision(
+            hitPoint.x, candidateY, hitPoint.z,
+            heldBox.userData.width / 2, boxH / 2, heldBox.userData.depth / 2, heldBox
+        );
+        if ( !col ) break;
+        candidateY = col.position.y + col.userData.height / 2 + boxH / 2;
+    }
+    landingY = candidateY - boxH / 2;
+
+    // Stacking colour rule — check ALL boxes whose footprint overlaps at the landing level
+    if ( hasIllegalSupport( heldBox.userData.colorName, hitPoint.x, landingY, hitPoint.z,
+            heldBox.userData.width / 2, heldBox.userData.depth / 2, heldBox ) ) {
+        showWarning( '⚠ Empilhamento ilegal — regra de cores' );
+        showWarnEdgesTemp( heldBox );
+        return;
+    }
+
+    // ── Success: place the box ──
+    const wasNext = heldBoxData && heldBoxData.wasNext;
+
+    camera.remove( heldBox );
+    heldBox.material.transparent = false;
+    heldBox.material.opacity = 1.0;
+    heldBox.material.emissiveIntensity = 0.15;
+    heldBox.rotation.set( 0, 0, 0 );
+    hideWarnEdges( heldBox );
+
+    heldBox.position.set( hitPoint.x, landingY + boxH / 2, hitPoint.z );
+    heldBox.userData.placed = true;
+    heldBox.userData.container = 'pallet';
+    boxGroup.add( heldBox );
+
+    heldBox = null;
+    heldBoxData = null;
+    applyGravity();
+    updateStats();
+    showButtons( false );
+
+    if ( wasNext ) spawnNextBox();
+    else statusDiv.textContent = 'Toque numa caixa para pegá-la';
+}
+
+// ================================================================
+//  End Mouse Drag (validate + place)
+// ================================================================
+function endDrag() {
+    if ( !isDragging || !heldBox ) return;
+    const box = heldBox;
+
+    const worldPos = new THREE.Vector3();
+    box.getWorldPosition( worldPos );
+    const boxH = box.userData.height;
+
+    const inPallet  = palletGroup  && boxFitsInPallet( worldPos, box.userData.width, box.userData.depth );
+
+    if ( !inPallet ) {
+        showWarning( '⚠ Solte sobre o palete' );
+        snapBackDrag();
+        return;
+    }
+
+    // Analytical landing + collision check
+    const landing = findLandingInfo( worldPos.x, worldPos.z, box );
+    let landingY = landing.y;
+
+    if ( landingY <= -Infinity ) {
+        showWarning( '⚠ Sem superfície de apoio' );
+        snapBackDrag();
+        return;
+    }
+
+    // Resolve lateral collisions by pushing up
+    let candidateY = landingY + boxH / 2;
+    for ( let tries = 0; tries < 12; tries++ ) {
+        const col = findCollision(
+            worldPos.x, candidateY, worldPos.z,
+            box.userData.width / 2, boxH / 2, box.userData.depth / 2, box
+        );
+        if ( !col ) break;
+        candidateY = col.position.y + col.userData.height / 2 + boxH / 2;
+    }
+    landingY = candidateY - boxH / 2;
+
+    // Stacking colour rule — check ALL boxes whose footprint overlaps at the landing level
+    if ( hasIllegalSupport( box.userData.colorName, worldPos.x, landingY, worldPos.z,
+            box.userData.width / 2, box.userData.depth / 2, box ) ) {
+        showWarning( '⚠ Empilhamento ilegal — regra de cores' );
+        snapBackDrag();
+        return;
+    }
+
+    // ── Place successfully ──
+    const wasNext = heldBoxData && heldBoxData.wasNext;
+
+    box.material.transparent = false;
+    box.material.opacity = 1.0;
+    box.material.emissiveIntensity = 0.15;
+    box.rotation.set( 0, 0, 0 );
+    hideWarnEdges( box );
+
+    box.position.set( worldPos.x, landingY + boxH / 2, worldPos.z );
+    box.userData.placed = true;
+    box.userData.container = 'pallet';
+
+    releasePointerLock();
+    isDragging = false;
+    heldBox = null;
+    heldBoxData = null;
+    if ( controls ) controls.enabled = true;
+    renderer.domElement.style.cursor = 'default';
+
+    applyGravity();
+    updateStats();
+    showButtons( false );
+
+    if ( wasNext ) spawnNextBox();
+    else statusDiv.textContent = 'Toque numa caixa para pegá-la';
+}
+
+// ================================================================
+//  Place Pallet + Caçamba
+// ================================================================
+function placePalletAt( matrix ) {
+    const pos = new THREE.Vector3().setFromMatrixPosition( matrix );
+    placedFloorY = pos.y;
+
+    palletGroup = createPallet();
+    palletGroup.position.set( pos.x, pos.y, pos.z );
+    scene.add( palletGroup );
+
+    reticle.visible = false;
+    mode = 'interact';
+    spawnNextBox();
+    statusDiv.textContent = 'Toque numa caixa para pegá-la';
+
+    if ( controls ) {
+        controls.target.set( pos.x, pos.y + 0.3, pos.z );
+        controls.update();
+    }
+}
+
+// ================================================================
+//  Create Pallet
+// ================================================================
+function createPallet() {
+    const g = new THREE.Group();
+    const boardMat = new THREE.MeshStandardMaterial( {
+        color: 0xdbb96e, roughness: 0.7,
+        emissive: 0x443300, emissiveIntensity: 0.25
+    } );
+    const board = new THREE.Mesh(
+        new THREE.BoxGeometry( PALLET_W, PALLET_THICK, PALLET_D ), boardMat
+    );
+    board.position.y = PALLET_LEG_H + PALLET_THICK / 2;
+    board.castShadow = true; board.receiveShadow = true;
+    g.add( board );
+    g.add( makeEdges( board, 0x5a3a1a ) );
+
+    const legMat = new THREE.MeshStandardMaterial( {
+        color: 0xb89050, roughness: 0.8,
+        emissive: 0x332200, emissiveIntensity: 0.2
+    } );
+    const legGeo = new THREE.BoxGeometry( 0.06, PALLET_LEG_H, 0.06 );
+    const ox = PALLET_W / 2 - 0.06, oz = PALLET_D / 2 - 0.06;
+    for ( const [ lx, lz ] of [ [ -ox, -oz ], [ ox, -oz ], [ -ox, oz ], [ ox, oz ] ] ) {
+        const leg = new THREE.Mesh( legGeo, legMat );
+        leg.position.set( lx, PALLET_LEG_H / 2, lz );
+        leg.castShadow = true;
+        g.add( leg );
+    }
+
+    const borderGeo = new THREE.EdgesGeometry( new THREE.BoxGeometry( PALLET_W, 0.001, PALLET_D ) );
+    const border = new THREE.LineSegments( borderGeo, new THREE.LineBasicMaterial( { color: 0xffcc00 } ) );
+    border.position.y = PALLET_LEG_H + PALLET_THICK + 0.002;
+    g.add( border );
+
+    const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry( 0.01, 0.01, 0.5, 8 ),
+        new THREE.MeshBasicMaterial( { color: 0xffdd00 } )
+    );
+    pole.position.set( -PALLET_W / 2 + 0.03, PALLET_LEG_H + PALLET_THICK + 0.25, -PALLET_D / 2 + 0.03 );
+    g.add( pole );
+
+    const flag = new THREE.Mesh(
+        new THREE.PlaneGeometry( 0.10, 0.05 ),
+        new THREE.MeshBasicMaterial( { color: 0xffdd00, side: THREE.DoubleSide } )
+    );
+    flag.position.set( -PALLET_W / 2 + 0.03 + 0.05, PALLET_LEG_H + PALLET_THICK + 0.47, -PALLET_D / 2 + 0.03 );
+    g.add( flag );
+
+    addCanvasLabel( g, 'PALETE', 256, 64, '#dbb96e', '#3a2200',
+        { y: PALLET_LEG_H + PALLET_THICK + 0.003, rotX: -Math.PI / 2 } );
+
+    g.userData.type = 'pallet';
+    return g;
+}
+
+// ================================================================
+//  Box Generation & Colour Rules
+// ================================================================
+function getBoxColor( volume ) {
+    if ( volume > VOLUME_HIGH ) return 'red';
+    if ( volume < VOLUME_LOW )  return 'blue';
+    return 'green';
+}
+
+function canStack( movingColor, targetColor ) {
+    if ( movingColor === targetColor ) return true;
+    if ( movingColor === 'blue'  && ( targetColor === 'green' || targetColor === 'red' ) ) return true;
+    if ( movingColor === 'green' && targetColor === 'red' ) return true;
+    return false;
+}
+
+function generateRandomBox( forcedColor ) {
+    // Pick colour first (equal ~1/3 chance each), then generate matching dims
+    let colorName;
+    if ( forcedColor ) {
+        colorName = forcedColor;
+    } else {
+        const roll = Math.random();
+        colorName = roll < 0.33 ? 'red' : roll < 0.66 ? 'green' : 'blue';
+    }
+
+    let w, h, d;
+    if ( colorName === 'red' ) {
+        w = 0.18 + Math.random() * 0.12;
+        h = 0.14 + Math.random() * 0.10;
+        d = 0.18 + Math.random() * 0.12;
+    } else if ( colorName === 'green' ) {
+        w = 0.12 + Math.random() * 0.12;
+        h = 0.08 + Math.random() * 0.10;
+        d = 0.12 + Math.random() * 0.12;
+    } else {
+        w = 0.06 + Math.random() * 0.10;
+        h = 0.05 + Math.random() * 0.08;
+        d = 0.06 + Math.random() * 0.10;
+    }
+
+    const volume = w * h * d;
+    // colorName already set above (forced or random)
+
+    const geo = new THREE.BoxGeometry( w, h, d );
+    const mat = new THREE.MeshStandardMaterial( {
+        color: BOX_COLORS[ colorName ],
+        roughness: 0.5, metalness: 0.1,
+        emissive: BOX_COLORS[ colorName ],
+        emissiveIntensity: 0.15
+    } );
+    const mesh = new THREE.Mesh( geo, mat );
+    mesh.castShadow = true; mesh.receiveShadow = true;
+
+    mesh.userData = {
+        isBox: true, colorName,
+        width: w, height: h, depth: d,
+        volume, placed: false, container: null
+    };
+
+    mesh.add( makeBoxEdges( geo, 0x222222, 'edges' ) );
+    const warn = makeBoxEdges( geo, 0xff0000, 'warnEdges' );
+    warn.visible = false; warn.scale.setScalar( 1.03 );
+    mesh.add( warn );
+
+    return mesh;
+}
+
+function spawnNextBox() {
+    if ( nextBox && nextBox.parent === boxGroup && !nextBox.userData.placed ) boxGroup.remove( nextBox );
+
+    nextBox = generateRandomBox();
+    placeNextBoxAtSpawn();
+}
+
+function spawnNextBoxColor( forcedColor ) {
+    if ( nextBox && nextBox.parent === boxGroup && !nextBox.userData.placed ) boxGroup.remove( nextBox );
+
+    nextBox = generateRandomBox( forcedColor );
+    placeNextBoxAtSpawn();
+}
+
+function placeNextBoxAtSpawn() {
+    const ud = nextBox.userData;
+    if ( palletGroup ) {
+        const pp = palletGroup.position;
+        nextBox.position.set(
+            pp.x + PALLET_W / 2 + ud.width / 2 + 0.12,
+            pp.y + PALLET_TOP + ud.height / 2,
+            pp.z
+        );
+    }
+    boxGroup.add( nextBox );
+    updateBoxInfo( nextBox );
+    showButtons( false );
+    statusDiv.textContent = 'Toque na caixa para pegá-la';
+}
+
+function updateBoxInfo( box ) {
+    if ( !box ) { boxInfoDiv.style.display = 'none'; return; }
+    const ud = box.userData;
+    const nm = { red: 'Vermelha', green: 'Verde', blue: 'Azul' };
+    const cl = { red: '#ff5555', green: '#55ff55', blue: '#5599ff' };
+    boxInfoDiv.innerHTML =
+        `<b>Próxima Caixa</b><br>` +
+        `Cor: <span style="color:${cl[ ud.colorName ]}">${nm[ ud.colorName ]}</span><br>` +
+        `Dim: ${( ud.width * 100 ).toFixed( 0 )} × ${( ud.height * 100 ).toFixed( 0 )} × ${( ud.depth * 100 ).toFixed( 0 )} cm<br>` +
+        `Volume: ${( ud.volume * 1e6 ).toFixed( 0 )} cm³`;
+    boxInfoDiv.style.display = 'block';
+}
+
+function updateStats() {
+    let pc = 0, pv = 0;
+    for ( const b of boxGroup.children ) {
+        if ( !b.userData || !b.userData.isBox || !b.userData.placed ) continue;
+        if ( b.userData.container === 'pallet' )  { pc++; pv += b.userData.volume; }
+    }
+    palletCountEl.textContent  = pc;
+    palletVolEl.textContent    = ( pv * 1e6 ).toFixed( 0 );
+}
+
+function isInBounds( pos, center, w, d ) {
+    return Math.abs( pos.x - center.x ) < w / 2 + 0.05 &&
+           Math.abs( pos.z - center.z ) < d / 2 + 0.05;
+}
+
+/** Check that the ENTIRE box (including its half-extents) fits within the pallet */
+function boxFitsInPallet( pos, boxW, boxD ) {
+    if ( !palletGroup ) return false;
+    const c = palletGroup.position;
+    return Math.abs( pos.x - c.x ) + boxW / 2 <= PALLET_W / 2 + 0.01 &&
+           Math.abs( pos.z - c.z ) + boxD / 2 <= PALLET_D / 2 + 0.01;
+}
+
+// ================================================================
+//  Warning Helpers
+// ================================================================
+function showWarning( msg ) {
+    warningDiv.textContent = msg;
+    warningDiv.style.display = 'block';
+    if ( warningTimeout ) clearTimeout( warningTimeout );
+    warningTimeout = setTimeout( () => {
+        warningDiv.style.display = 'none';
+        warningTimeout = null;
+    }, 2000 );
+}
+
+function showWarnEdgesTemp( box ) {
+    const we = box.getObjectByName( 'warnEdges' );
+    if ( we ) { we.visible = true; setTimeout( () => { we.visible = false; }, 2000 ); }
+}
+
+function showWarnEdgesImmediate( box, show ) {
+    const we = box.getObjectByName( 'warnEdges' );
+    if ( we ) we.visible = show;
+}
+
+function hideWarnEdges( box ) {
+    const we = box.getObjectByName( 'warnEdges' );
+    if ( we ) we.visible = false;
+}
+
+function showButtons( active ) {
+    cancelBtn.style.display = active ? 'block' : 'none';
+    newBoxBtn.style.display = ( !active && mode === 'interact' ) ? 'block' : 'none';
+    const showColor = ( !active && mode === 'interact' ) ? 'block' : 'none';
+    pickRedBtn.style.display   = showColor;
+    pickGreenBtn.style.display = showColor;
+    pickBlueBtn.style.display  = showColor;
+}
+
+// ================================================================
+//  3-D AABB Collision Helpers
+// ================================================================
+const COLLISION_EPS = 0.003;   // tiny gap so touching faces don't count as overlap
+
+/** Check if a candidate box at (cx, cy, cz) with half-sizes (chw, chh, chd)
+ *  overlaps any placed box (excluding excludeBox). Returns the first collider or null. */
+function findCollision( cx, cy, cz, chw, chh, chd, excludeBox ) {
+    const placed = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed && c !== excludeBox
+    );
+    for ( const b of placed ) {
+        const bx = b.position.x, by = b.position.y, bz = b.position.z;
+        const bhw = b.userData.width / 2, bhh = b.userData.height / 2, bhd = b.userData.depth / 2;
+        if ( Math.abs( cx - bx ) < chw + bhw - COLLISION_EPS &&
+             Math.abs( cy - by ) < chh + bhh - COLLISION_EPS &&
+             Math.abs( cz - bz ) < chd + bhd - COLLISION_EPS ) {
+            return b;
+        }
+    }
+    return null;
+}
+
+// ================================================================
+//  Surface Detection (analytical — no raycasting on boxes)
+// ================================================================
+function findLandingInfo( x, z, excludeBox ) {
+    // Returns { y: landingSurfaceY, onBox: boxOrNull }
+
+    let bestY  = -Infinity;
+    let onBox  = null;
+
+    // 1. Pallet top surface
+    if ( palletGroup ) {
+        const pp = palletGroup.position;
+        if ( Math.abs( x - pp.x ) <= PALLET_W / 2 + 0.01 &&
+             Math.abs( z - pp.z ) <= PALLET_D / 2 + 0.01 ) {
+            bestY = pp.y + PALLET_TOP;
+        }
+    }
+
+    // 2. Placed boxes — only if (x,z) is inside that box's XZ footprint
+    const placed = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed && c !== excludeBox
+    );
+    for ( const b of placed ) {
+        const hw = b.userData.width  / 2;
+        const hd = b.userData.depth  / 2;
+        if ( Math.abs( x - b.position.x ) < hw &&
+             Math.abs( z - b.position.z ) < hd ) {
+            const topY = b.position.y + b.userData.height / 2;
+            if ( topY > bestY ) { bestY = topY; onBox = b; }
+        }
+    }
+
+    // 3. Fallback
+    if ( bestY <= -Infinity ) bestY = placedFloorY;
+
+    return { y: bestY, onBox };
+}
+
+function findSurfaceY( x, z, excludeBox ) {
+    return findLandingInfo( x, z, excludeBox ).y;
+}
+
+/** Find ALL placed boxes whose top face touches the candidate's bottom face
+ *  AND whose XZ footprints overlap (not just center‐point). */
+function findSupportingBoxes( cx, cy, cz, chw, chd, excludeBox ) {
+    const botY = cy;  // landing surface Y (bottom of candidate)
+    const supports = [];
+    const placed = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed && c !== excludeBox
+    );
+    for ( const b of placed ) {
+        const topY = b.position.y + b.userData.height / 2;
+        // Top of placed box is at the same level as candidate bottom?
+        if ( Math.abs( botY - topY ) > 0.015 ) continue;
+        // XZ footprint overlap (AABB)
+        const bhw = b.userData.width / 2, bhd = b.userData.depth / 2;
+        if ( Math.abs( cx - b.position.x ) < chw + bhw - 0.005 &&
+             Math.abs( cz - b.position.z ) < chd + bhd - 0.005 ) {
+            supports.push( b );
+        }
+    }
+    return supports;
+}
+
+/** Returns true if stacking is illegal against any supporting box */
+function hasIllegalSupport( movingColor, cx, cy, cz, chw, chd, excludeBox ) {
+    const supports = findSupportingBoxes( cx, cy, cz, chw, chd, excludeBox );
+    for ( const b of supports ) {
+        if ( !canStack( movingColor, b.userData.colorName ) ) return true;
+    }
+    return false;
+}
+
+// ================================================================
+//  Gravity System
+// ================================================================
+function markFloatingBoxes( removedBox ) {
+    const rPos = new THREE.Vector3();
+    removedBox.getWorldPosition( rPos );
+    const topY = rPos.y + removedBox.userData.height / 2;
+    const allPlaced = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed && c !== removedBox
+    );
+    for ( const b of allPlaced ) {
+        const bp = new THREE.Vector3();
+        b.getWorldPosition( bp );
+        const botY = bp.y - b.userData.height / 2;
+        if ( Math.abs( botY - topY ) < 0.025 &&
+             Math.abs( bp.x - rPos.x ) < ( removedBox.userData.width  + b.userData.width )  / 2 &&
+             Math.abs( bp.z - rPos.z ) < ( removedBox.userData.depth  + b.userData.depth )  / 2 ) {
+            floatingBoxes.push( b );
+            markFloatingAbove( b, allPlaced );
+        }
+    }
+}
+
+function markFloatingAbove( below, allPlaced ) {
+    const bp = new THREE.Vector3();
+    below.getWorldPosition( bp );
+    const topY = bp.y + below.userData.height / 2;
+    for ( const b of allPlaced ) {
+        if ( floatingBoxes.includes( b ) ) continue;
+        const p = new THREE.Vector3();
+        b.getWorldPosition( p );
+        const botY = p.y - b.userData.height / 2;
+        if ( Math.abs( botY - topY ) < 0.025 &&
+             Math.abs( p.x - bp.x ) < ( below.userData.width  + b.userData.width )  / 2 &&
+             Math.abs( p.z - bp.z ) < ( below.userData.depth  + b.userData.depth )  / 2 ) {
+            floatingBoxes.push( b );
+            markFloatingAbove( b, allPlaced );
+        }
+    }
+}
+
+function applyGravity() {
+    floatingBoxes.sort( ( a, b ) => a.position.y - b.position.y );
+    for ( const b of floatingBoxes ) dropBox( b );
+    floatingBoxes = [];
+}
+
+function dropBox( box ) {
+    const pos = box.position.clone();
+    const boxH = box.userData.height;
+    const ray = new THREE.Raycaster(
+        new THREE.Vector3( pos.x, pos.y + 5, pos.z ),
+        new THREE.Vector3( 0, -1, 0 ), 0, 20
+    );
+    const targets = [];
+    if ( palletGroup )  targets.push( palletGroup );
+    const others = boxGroup.children.filter( c =>
+        c.userData && c.userData.isBox && c.userData.placed &&
+        c !== box && !floatingBoxes.includes( c )
+    );
+    targets.push( ...others );
+    const hits = ray.intersectObjects( targets, true );
+    if ( hits.length > 0 ) {
+        let bestY = -Infinity;
+        for ( const h of hits ) {
+            if ( h.point.y <= pos.y && h.point.y > bestY ) bestY = h.point.y;
+        }
+        if ( bestY > -Infinity ) box.position.y = bestY + boxH / 2;
+    }
+}
+
+// ================================================================
+//  Hover Highlights
+// ================================================================
+function cleanHighlights() {
+    while ( highlightedObjs.length ) {
+        const obj = highlightedObjs.pop();
+        if ( obj.userData && obj.userData.isBox && obj !== heldBox ) {
+            obj.material.emissiveIntensity = 0.15;
+        }
+    }
+}
+
+function updateHoverDesktop() {
+    if ( isDragging || heldBox || mode !== 'interact' ) return;
+    raycaster.setFromCamera( pointer, camera );
+    const allBoxes = boxGroup.children.filter( c => c.userData && c.userData.isBox );
+    const hits = raycaster.intersectObjects( allBoxes, true );
+    if ( hits.length > 0 ) {
+        let target = hits[ 0 ].object;
+        while ( target && !( target.userData && target.userData.isBox ) ) target = target.parent;
+        if ( target ) {
+            target.material.emissiveIntensity = 0.55;
+            highlightedObjs.push( target );
+            renderer.domElement.style.cursor = 'grab';
+            return;
+        }
+    }
+    if ( !isDragging ) renderer.domElement.style.cursor = 'default';
+}
+
+function updateHoverAR() {
+    if ( !controller || heldBox ) return;
+    const line = controller.getObjectByName( 'line' );
+    tempMatrix.identity().extractRotation( controller.matrixWorld );
+    raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+    raycaster.ray.direction.set( 0, 0, -1 ).applyMatrix4( tempMatrix );
+    const allBoxes = boxGroup.children.filter( c => c.userData && c.userData.isBox );
+    const hits = raycaster.intersectObjects( allBoxes, true );
+    if ( hits.length > 0 ) {
+        let target = hits[ 0 ].object;
+        while ( target && !( target.userData && target.userData.isBox ) ) target = target.parent;
+        if ( target ) {
+            target.material.emissiveIntensity = 0.55;
+            highlightedObjs.push( target );
+            if ( line ) line.scale.z = hits[ 0 ].distance;
+        }
+    } else {
+        if ( line ) line.scale.z = 3;
+    }
+}
+
+// ================================================================
+//  Drag Preview (mouse drag — live validation)
+// ================================================================
+function updateDragPreview() {
+    if ( !isDragging || !heldBox ) return;
+    const wp = new THREE.Vector3();
+    heldBox.getWorldPosition( wp );
+
+    const inP = palletGroup  && boxFitsInPallet( wp, heldBox.userData.width, heldBox.userData.depth );
+
+    if ( !inP ) { showWarnEdgesImmediate( heldBox, true ); return; }
+
+    // Analytical check: find what we'd land on, including collision push-up
+    const ud = heldBox.userData;
+    const landing = findLandingInfo( wp.x, wp.z, heldBox );
+    let candidateY = landing.y + ud.height / 2;
+    for ( let tries = 0; tries < 12; tries++ ) {
+        const col = findCollision(
+            wp.x, candidateY, wp.z,
+            ud.width / 2, ud.height / 2, ud.depth / 2, heldBox
+        );
+        if ( !col ) break;
+        candidateY = col.position.y + col.userData.height / 2 + ud.height / 2;
+    }
+
+    let valid = true;
+    // Check ALL boxes whose footprint overlaps at the resting level
+    const restY = candidateY - ud.height / 2;
+    if ( hasIllegalSupport( ud.colorName, wp.x, restY, wp.z,
+            ud.width / 2, ud.depth / 2, heldBox ) ) {
+        valid = false;
+    }
+
+    showWarnEdgesImmediate( heldBox, !valid );
+}
+
+// ================================================================
+//  AR Virtual Joystick Handlers
+// ================================================================
+function showARControls( show ) {
+    if ( joystickContainer ) joystickContainer.style.display = show ? 'block' : 'none';
+    if ( dropBtn )           dropBtn.style.display           = show ? 'flex'  : 'none';
+}
+
+function onJoystickTouchStart( e ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.changedTouches[ 0 ];
+    joystickTouchId = touch.identifier;
+    updateJoystickFromTouch( touch );
+}
+
+function onJoystickTouchMove( e ) {
+    e.preventDefault();
+    e.stopPropagation();
+    for ( const touch of e.changedTouches ) {
+        if ( touch.identifier === joystickTouchId ) {
+            updateJoystickFromTouch( touch );
+            break;
+        }
+    }
+}
+
+function onJoystickTouchEnd( e ) {
+    e.preventDefault();
+    e.stopPropagation();
+    for ( const touch of e.changedTouches ) {
+        if ( touch.identifier === joystickTouchId ) {
+            joystickTouchId = null;
+            joystickDX = 0;
+            joystickDZ = 0;
+            if ( joystickThumb ) {
+                joystickThumb.style.left = '38px';
+                joystickThumb.style.top  = '38px';
+            }
+            break;
+        }
+    }
+}
+
+function updateJoystickFromTouch( touch ) {
+    const rect    = joystickContainer.getBoundingClientRect();
+    const centerX = rect.left + rect.width  / 2;
+    const centerY = rect.top  + rect.height / 2;
+    const maxR    = rect.width / 2 - 27;
+
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    const dist = Math.sqrt( dx * dx + dy * dy );
+    if ( dist > maxR ) { dx = dx / dist * maxR; dy = dy / dist * maxR; }
+
+    joystickDX =  dx / maxR;
+    joystickDZ =  dy / maxR;
+
+    if ( joystickThumb ) {
+        joystickThumb.style.left = ( 38 + dx ) + 'px';
+        joystickThumb.style.top  = ( 38 + dy ) + 'px';
+    }
+}
+
+// ================================================================
+//  AR Drop Button
+// ================================================================
+function onDropButton() {
+    if ( !arJoystickMode || !heldBox ) return;
+
+    const ud = heldBox.userData;
+    const bx = heldBox.position.x;
+    const bz = heldBox.position.z;
+
+    // Validate pallet bounds
+    const inPallet = palletGroup && boxFitsInPallet( heldBox.position, ud.width, ud.depth );
+    if ( !inPallet ) {
+        showWarning( '⚠ Posicione sobre o palete' );
+        return;
+    }
+
+    // Find landing surface
+    const landing  = findLandingInfo( bx, bz, heldBox );
+    let   landingY = landing.y;
+    if ( landingY <= -Infinity ) {
+        showWarning( '⚠ Sem superfície de apoio' );
+        return;
+    }
+
+    // Resolve lateral collisions
+    let candidateY = landingY + ud.height / 2;
+    for ( let tries = 0; tries < 12; tries++ ) {
+        const col = findCollision( bx, candidateY, bz,
+            ud.width / 2, ud.height / 2, ud.depth / 2, heldBox );
+        if ( !col ) break;
+        candidateY = col.position.y + col.userData.height / 2 + ud.height / 2;
+    }
+    landingY = candidateY - ud.height / 2;
+
+    // Stacking colour rule
+    if ( hasIllegalSupport( ud.colorName, bx, landingY, bz,
+            ud.width / 2, ud.depth / 2, heldBox ) ) {
+        showWarning( '⚠ Empilhamento ilegal — regra de cores' );
+        showWarnEdgesTemp( heldBox );
+        return;
+    }
+
+    // ── Success: place the box ──
+    const wasNext = heldBoxData && heldBoxData.wasNext;
+
+    heldBox.material.transparent = false;
+    heldBox.material.opacity     = 1.0;
+    heldBox.material.emissiveIntensity = 0.15;
+    heldBox.rotation.set( 0, 0, 0 );
+    hideWarnEdges( heldBox );
+
+    heldBox.position.set( bx, landingY + ud.height / 2, bz );
+    heldBox.userData.placed    = true;
+    heldBox.userData.container = 'pallet';
+    if ( heldBox.parent !== boxGroup ) boxGroup.add( heldBox );
+
+    arJoystickMode = false;
+    heldBox     = null;
+    heldBoxData = null;
+    joystickDX  = 0;
+    joystickDZ  = 0;
+
+    showARControls( false );
+    applyGravity();
+    updateStats();
+    showButtons( false );
+
+    if ( wasNext ) spawnNextBox();
+    else statusDiv.textContent = 'Toque numa caixa para pegá-la';
+}
+
+// ================================================================
+//  Drop Shadow Update
+// ================================================================
+function updateDropShadow() {
+    if ( !dropShadowMesh || !arJoystickMode || !heldBox ) {
+        if ( dropShadowMesh ) dropShadowMesh.visible = false;
+        return;
+    }
+
+    const ud = heldBox.userData;
+    const bx = heldBox.position.x;
+    const bz = heldBox.position.z;
+
+    // Scale shadow to match box footprint (slight padding)
+    dropShadowMesh.scale.set( ud.width * 1.05, 1, ud.depth * 1.05 );
+
+    // Landing surface
+    const landing  = findLandingInfo( bx, bz, heldBox );
+    let   landingY = landing.y;
+    if ( landingY <= -Infinity ) landingY = placedFloorY;
+
+    dropShadowMesh.position.set( bx, landingY + 0.003, bz );
+    dropShadowMesh.visible = true;
+
+    // Validity check
+    const inPallet = palletGroup && boxFitsInPallet( heldBox.position, ud.width, ud.depth );
+    let valid = inPallet;
+
+    if ( valid ) {
+        let candidateY = landingY + ud.height / 2;
+        for ( let tries = 0; tries < 12; tries++ ) {
+            const col = findCollision( bx, candidateY, bz,
+                ud.width / 2, ud.height / 2, ud.depth / 2, heldBox );
+            if ( !col ) break;
+            candidateY = col.position.y + col.userData.height / 2 + ud.height / 2;
+        }
+        const restY = candidateY - ud.height / 2;
+        if ( hasIllegalSupport( ud.colorName, bx, restY, bz,
+                ud.width / 2, ud.depth / 2, heldBox ) ) {
+            valid = false;
+        }
+    }
+
+    dropShadowMesh.material.color.setHex( valid ? 0x00ff00 : 0xff0000 );
+    dropShadowMesh.material.opacity = valid ? 0.35 : 0.45;
+}
+
+// ================================================================
+//  Render Loop
+// ================================================================
+function render( timestamp, frame ) {
+
+    // ── WebXR Hit-Test ──
+    if ( frame && mode === 'place-pallet' ) {
+        const session  = renderer.xr.getSession();
+        const refSpace = renderer.xr.getReferenceSpace();
+
+        if ( !hitTestSourceRequested ) {
+            session.requestReferenceSpace( 'viewer' ).then( vs => {
+                session.requestHitTestSource( { space: vs } ).then( src => {
+                    hitTestSource = src;
+                } );
+            } );
+            session.addEventListener( 'end', () => {
+                hitTestSourceRequested = false;
+                hitTestSource = null;
+            } );
+            hitTestSourceRequested = true;
+        }
+
+        if ( hitTestSource ) {
+            const results = frame.getHitTestResults( hitTestSource );
+            if ( results.length > 0 ) {
+                const pose = results[ 0 ].getPose( refSpace );
+                reticle.visible = true;
+                reticle.matrix.fromArray( pose.transform.matrix );
+            } else {
+                reticle.visible = false;
+            }
+        }
+    }
+
+    // ── Orbit controls ──
+    if ( controls && !renderer.xr.isPresenting ) controls.update();
+
+    // ── AR Joystick movement ──
+    if ( arJoystickMode && heldBox && ( joystickDX !== 0 || joystickDZ !== 0 ) ) {
+        const dt = prevTimestamp ? ( timestamp - prevTimestamp ) / 1000 : 0.016;
+        const clampDt = Math.min( dt, 0.1 );
+
+        // Camera-relative directions on XZ plane
+        camera.getWorldDirection( _camFwd );
+        _camFwd.y = 0;
+        _camFwd.normalize();
+        _camRight.crossVectors( _camFwd, _upVec ).normalize();
+
+        const speed = JOYSTICK_MOVE_SPEED * clampDt;
+        heldBox.position.x += ( joystickDX * _camRight.x - joystickDZ * _camFwd.x ) * speed;
+        heldBox.position.z += ( joystickDX * _camRight.z - joystickDZ * _camFwd.z ) * speed;
+
+        // Recalculate Y: float above landing surface
+        const ud   = heldBox.userData;
+        const surfY = findSurfaceY( heldBox.position.x, heldBox.position.z, heldBox );
+        heldBox.position.y = surfY + ud.height / 2 + 0.10;
+    }
+    prevTimestamp = timestamp;
+
+    // ── Drop Shadow ──
+    updateDropShadow();
+
+    // ── Hover highlights ──
+    cleanHighlights();
+    if ( renderer.xr.isPresenting ) updateHoverAR();
+    else updateHoverDesktop();
+
+    // ── Drag preview ──
+    if ( isDragging && mode === 'interact' ) updateDragPreview();
+
+    renderer.render( scene, camera );
+}
+
+// ================================================================
+//  Utility Helpers
+// ================================================================
+function makeEdges( mesh, color ) {
+    const e = new THREE.LineSegments(
+        new THREE.EdgesGeometry( mesh.geometry ),
+        new THREE.LineBasicMaterial( { color } )
+    );
+    e.position.copy( mesh.position );
+    return e;
+}
+
+function makeBoxEdges( geo, color, name ) {
+    const e = new THREE.LineSegments(
+        new THREE.EdgesGeometry( geo ),
+        new THREE.LineBasicMaterial( { color } )
+    );
+    e.name = name;
+    return e;
+}
+
+function addCanvasLabel( parent, text, cw, ch, bg, fg, opts ) {
+    const cv = document.createElement( 'canvas' );
+    cv.width = cw; cv.height = ch;
+    const cx = cv.getContext( '2d' );
+    cx.fillStyle = bg; cx.fillRect( 0, 0, cw, ch );
+    cx.fillStyle = fg; cx.font = 'bold 28px sans-serif'; cx.textAlign = 'center';
+    cx.fillText( text, cw / 2, ch * 0.68 );
+    const lb = new THREE.Mesh(
+        new THREE.PlaneGeometry( 0.26, 0.055 ),
+        new THREE.MeshBasicMaterial( { map: new THREE.CanvasTexture( cv ), transparent: true } )
+    );
+    lb.position.set( opts.x || 0, opts.y || 0, opts.z || 0 );
+    if ( opts.rotX ) lb.rotation.x = opts.rotX;
+    if ( opts.rotY ) lb.rotation.y = opts.rotY;
+    parent.add( lb );
+}
+
+</script>
+</body>
+</html>
